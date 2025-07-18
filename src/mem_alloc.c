@@ -43,7 +43,36 @@ void* mem_calloc(int num, size_t size)
         return NULL;
     memset(ptr, 0, total_size);
     return ptr;
-}
+};
+
+void* mem_realloc(void* ptr, size_t size)
+{
+    if (!ptr)
+        return mem_alloc(size);
+    if (size <= 0)
+    {
+        free_alloc(ptr);
+        return NULL;
+    }
+    Block* block = (Block*)ptr -1;
+    if (block->size >= size)
+        return ptr;
+    if (block->next->free && (block->size + sizeof(Block) + block->next->size >= size))
+    {
+        block->size += sizeof(Block) + block->next->size;
+        block->next = block->next->next;
+        if (block->next)
+            block->next->prev = block;
+        split_block(block, size);
+        return ptr;
+    }
+    void* new_ptr = mem_alloc(size);
+    if (!new_ptr)
+        return NULL;
+    memcpy(new_ptr, ptr, block->size);
+    free_alloc(ptr);
+    return new_ptr;
+};
 
 void free_alloc(void *memptr)
 {
