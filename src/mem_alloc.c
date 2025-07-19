@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include "../include/mem_alloc.h"
 
 static Block *head = NULL, *tail = NULL;
@@ -11,16 +12,21 @@ Block* find_fit(size_t size);
 Block* allocate_block(size_t size);
 void split_block(Block*, size_t);
 void coalesce_block(Block*);
+void* mmap_alloc(size_t size);
 void free_block(Block*);
 
 void* mem_alloc(size_t size)
 {
     if (size <= 0)
         return NULL;
+    if (size > MMAP_THRESHOLD)
+    {
+        return mmap_alloc(size);
+    }
     Block* block = find_fit(size);
     if (!block)
     {
-        block = allocate_block(size);
+        block = allocate_block(ALIGN(size));
         if (!block)
             return NULL;
     }
@@ -30,7 +36,7 @@ void* mem_alloc(size_t size)
         block->free = 0;
     }
     
-    return block + 1;
+    return (void*)(block + 1);
 };
 
 void* mem_calloc(int num, size_t size)
@@ -74,9 +80,41 @@ void* mem_realloc(void* ptr, size_t size)
     return new_ptr;
 };
 
+void* mmap_alloc(size_t size)
+{
+    size_t tot_size = sizeof(Block) + size;
+    Block* ptr = mmap(NULL, tot_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (ptr == MAP_FAILED)
+        {
+            return NULL;
+        }
+        ptr->free = 0;
+        ptr->next = NULL;
+        ptr->prev = NULL;
+        ptr->is_mmap = 1;
+        ptr->size = size;
+        return (void*)(ptr + 1);
+};
+
 void free_alloc(void *memptr)
 {
+    if (!memptr)
+        return;
     Block* block = (Block*)memptr -1;
+    if (block->free)
+    {
+        fprintf(stderr, "Double free detected: Can't perform this actionl!\n");
+        exit(EXIT_FAILURE);
+    }
+    if (block->is_mmap)
+    {
+        if (munmap((Block*)block, block->size + sizeof(Block)))
+        {
+            perror("Can't free memory");
+            exit(EXIT_FAILURE);
+        }
+        return;
+    }
     free_block(block);
 };
 
@@ -98,12 +136,13 @@ Block* allocate_block(size_t size)
 {
     size_t total_size = sizeof(Block) + size;
     Block* block = sbrk(0);
-    if (sbrk(total_size) == (void*)-1)
+    if (sbrk(ALIGN(total_size)) == (void*)-1)
         return NULL;
     block->size = size;
     block->free = 0;
     block->next = NULL;
     block->prev = NULL;
+    block->is_mmap = 0;
 
     if (!head)
         head = block;
@@ -120,11 +159,12 @@ Block* allocate_block(size_t size)
 
 void split_block(Block* block, size_t size)
 {
-    if (block->size >= size + sizeof(Block) + MIN_BLOCK_SIZE)
+    if (block->size >= ALIGN(size) + sizeof(Block) + MIN_BLOCK_SIZE)
     {
         Block* new_block = (Block*)((char*)(block + 1) + size);
         new_block->size = block->size - size - sizeof(Block);
         new_block->free = 1;
+        new_block->is_mmap = 0;
         new_block->next = block->next;
         new_block->prev = block;
         if (block->next != NULL)

@@ -8,8 +8,16 @@ typedef struct Block
 {
     size_t size;
     int free;
+    int is_mmap;
     struct Block *next, *prev;
 } Block;
+
+//memory alignment for allocated heap segment
+#define ALIGNMENT 8
+#define ALIGN(size) ((size + ALIGNMENT -1) & ~(ALIGNMENT -1))
+
+//mmap threshold limit
+#define MMAP_THRESHOLD 128 * 1024
 
 //minimum block size i.e. for memory alignment in heap
 #define MIN_BLOCK_SIZE 8
