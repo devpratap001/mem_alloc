@@ -5,11 +5,12 @@
 #include "../include/mem_alloc_internals.h"
 
 static Block *head = NULL, *tail = NULL;
+// static void *heap_cur = NULL, *heap_end = NULL;
 
-Block* find_fit(size_t size)
+Block *find_fit(size_t size)
 {
-    Block* curr = head;
-    while(curr)
+    Block *curr = head;
+    while (curr)
     {
         if (curr->free && curr->size >= size)
         {
@@ -20,17 +21,31 @@ Block* find_fit(size_t size)
     return NULL;
 };
 
-Block* allocate_block(size_t size)
+Block *allocate_block(size_t size)
 {
-    size_t total_size = sizeof(Block) + size;
-    Block* block = sbrk(0);
-    if (sbrk(ALIGN(total_size)) == (void*)-1)
+    size_t total_size = sizeof(Block) + ALIGN(size);
+    size_t chunk_size = ALIGN_UP(total_size, PAGE_SIZE);
+    Block *block = NULL, *leftover = NULL;
+
+    if ((block = sbrk(chunk_size)) == (void *)-1)
         return NULL;
-    block->size = size;
+    block->size = ALIGN(size);
     block->free = 0;
     block->next = NULL;
     block->prev = NULL;
     block->is_mmap = 0;
+
+    size_t leftover_size = chunk_size - total_size;
+    if (leftover_size >= sizeof(Block) + MIN_BLOCK_SIZE)
+    {
+        leftover = (Block *)((char *)block + total_size);
+        leftover->free = 1;
+        leftover->is_mmap = 0;
+        leftover->next = NULL;
+        leftover->prev = block;
+        leftover->size = leftover_size - sizeof(Block);
+        block->next = leftover;
+    }
 
     if (!head)
         head = block;
@@ -39,17 +54,17 @@ Block* allocate_block(size_t size)
         tail->next = block;
         block->prev = tail;
     }
-    
+
     tail = block;
 
     return block;
 };
 
-void split_block(Block* block, size_t size)
+void split_block(Block *block, size_t size)
 {
     if (block->size >= ALIGN(size) + sizeof(Block) + MIN_BLOCK_SIZE)
     {
-        Block* new_block = (Block*)((char*)(block + 1) + size);
+        Block *new_block = (Block *)((char *)(block + 1) + size);
         new_block->size = block->size - size - sizeof(Block);
         new_block->free = 1;
         new_block->is_mmap = 0;
@@ -62,7 +77,7 @@ void split_block(Block* block, size_t size)
     }
 };
 
-void coalesce_block(Block* block)
+void coalesce_block(Block *block)
 {
     if (block->next && block->next->free)
     {
@@ -77,7 +92,7 @@ void coalesce_block(Block* block)
     }
 };
 
-void free_block(Block* block)
+void free_block(Block *block)
 {
     if (!block)
         return;

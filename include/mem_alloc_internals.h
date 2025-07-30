@@ -16,11 +16,17 @@ typedef struct Block
 #define ALIGNMENT 8
 #define ALIGN(size) ((size + ALIGNMENT -1) & ~(ALIGNMENT -1))
 
+//memory alignment with custom width
+#define ALIGN_UP(size, pool) ((size + pool -1) & ~(pool -1))
+
 
 //minimum block size i.e. for memory alignment in heap
 #define MIN_BLOCK_SIZE 8
 
 //==================== Block freelist implementation =============
+
+// default page size for memory allocate using sbrk
+#define PAGE_SIZE 4096
 
 //function to find first-fit in the block freelist
 Block* find_fit(size_t);
