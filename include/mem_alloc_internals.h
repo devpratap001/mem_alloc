@@ -34,6 +34,9 @@ Block* find_fit(size_t);
 // allocate new block of given size
 Block* allocate_block(size_t);
 
+// remove a block from our general fallback freelist
+void remove_from_freelist(Block*);
+
 // split a larger block into two smaller ones in linked list
 void split_block(Block*, size_t);
 
@@ -53,5 +56,9 @@ void* mmap_alloc(size_t);
 
 // free mmap memory allocaton region
 void mmap_free(Block*);
+
+//===================== heap memory print for debugging ==============
+
+void print_heap_status(void);
 
 #endif

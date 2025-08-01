@@ -4,7 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "../include/mem_alloc.h"
-#include "../include/mem_alloc_internals.h"
+#include "../include/fs_bins.h"
 
 
 void* mem_alloc(size_t size)
@@ -15,7 +15,24 @@ void* mem_alloc(size_t size)
     {
         return mmap_alloc(ALIGN(size));
     }
-    Block* block = find_fit(size);
+    Block* block = NULL;
+    if (get_bin_index(ALIGN(size)) >= 0)
+    {
+        size_t index = get_bin_index(ALIGN(size));
+        while (index < MAX_BIN_CATEGORIES)
+        {
+            block = find_fit_bin(bins[index], ALIGN(size));
+            if (block)
+                break;
+            index++;
+        }
+    };
+    if (block)
+    {
+        block = pop_bins(block, block->size);
+        return (void*)(block + 1);
+    };
+    block = find_fit(ALIGN(size));
     if (!block)
     {
         block = allocate_block(ALIGN(size));
@@ -25,6 +42,7 @@ void* mem_alloc(size_t size)
     else
     {
         split_block(block, ALIGN(size));
+        remove_from_freelist(block);
         block->free = 0;
     }
     
@@ -55,15 +73,6 @@ void* mem_realloc(void* ptr, size_t size)
     Block* block = (Block*)ptr -1;
     if (block->size >= size)
         return ptr;
-    if (block->next->free && (block->size + sizeof(Block) + block->next->size >= size))
-    {
-        block->size += sizeof(Block) + block->next->size;
-        block->next = block->next->next;
-        if (block->next)
-            block->next->prev = block;
-        split_block(block, size);
-        return ptr;
-    }
     void* new_ptr = mem_alloc(size);
     if (!new_ptr)
         return NULL;
@@ -79,7 +88,7 @@ void free_alloc(void *memptr)
     Block* block = (Block*)memptr -1;
     if (block->free)
     {
-        fprintf(stderr, "Double free detected: Can't perform this actionl!\n");
+        fprintf(stderr, "Double free detected: Can't perform this action!\n");
         exit(EXIT_FAILURE);
     }
     if (block->is_mmap)
@@ -87,5 +96,16 @@ void free_alloc(void *memptr)
         mmap_free(block);
         return;
     }
+    size_t index = get_bin_index(block->size);
+    if (index >= 0 && index < MAX_BIN_CATEGORIES)
+    {
+        push_bins(block, block->size);
+        return;
+    }
     free_block(block);
+};
+
+void print_heap(void)
+{
+    print_heap_status();
 };
