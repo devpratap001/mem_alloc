@@ -6,8 +6,7 @@
 #include "../include/mem_alloc.h"
 #include "../include/fs_bins.h"
 
-
-void* mem_alloc(size_t size)
+void *mem_alloc(size_t size)
 {
     if (size <= 0)
         return NULL;
@@ -15,7 +14,8 @@ void* mem_alloc(size_t size)
     {
         return mmap_alloc(ALIGN(size));
     }
-    Block* block = NULL;
+    size += sizeof(Blockfooter);
+    Block *block = NULL;
     if (get_bin_index(ALIGN(size)) >= 0)
     {
         size_t index = get_bin_index(ALIGN(size));
@@ -29,8 +29,9 @@ void* mem_alloc(size_t size)
     };
     if (block)
     {
+        set_prev_full(block);
         block = pop_bins(block, block->size);
-        return (void*)(block + 1);
+        return (void *)(block + 1);
     };
     block = find_fit(ALIGN(size));
     if (!block)
@@ -43,25 +44,25 @@ void* mem_alloc(size_t size)
     {
         split_block(block, ALIGN(size));
         remove_from_freelist(block);
-        block->free = 0;
+        block->free &= ~(CURR_FREE);
     }
-    
-    return (void*)(block + 1);
+
+    return (void *)(block + 1);
 };
 
-void* mem_calloc(int num, size_t size)
+void *mem_calloc(int num, size_t size)
 {
     if (size <= 0 || num <= 0)
         return NULL;
     size_t total_size = num * size;
-    void* ptr = mem_alloc(total_size);
+    void *ptr = mem_alloc(total_size);
     if (!ptr)
         return NULL;
     memset(ptr, 0, total_size);
     return ptr;
 };
 
-void* mem_realloc(void* ptr, size_t size)
+void *mem_realloc(void *ptr, size_t size)
 {
     if (!ptr)
         return mem_alloc(size);
@@ -70,10 +71,10 @@ void* mem_realloc(void* ptr, size_t size)
         free_alloc(ptr);
         return NULL;
     }
-    Block* block = (Block*)ptr -1;
+    Block *block = (Block *)ptr - 1;
     if (block->size >= size)
         return ptr;
-    void* new_ptr = mem_alloc(size);
+    void *new_ptr = mem_alloc(size);
     if (!new_ptr)
         return NULL;
     memcpy(new_ptr, ptr, block->size);
@@ -85,8 +86,8 @@ void free_alloc(void *memptr)
 {
     if (!memptr)
         return;
-    Block* block = (Block*)memptr -1;
-    if (block->free)
+    Block *block = (Block *)memptr - 1;
+    if (block->free & CURR_FREE)
     {
         fprintf(stderr, "Double free detected: Can't perform this action!\n");
         exit(EXIT_FAILURE);
@@ -96,6 +97,9 @@ void free_alloc(void *memptr)
         mmap_free(block);
         return;
     }
+    Blockfooter *footer = (void *)(block + 1) + block->size - sizeof(Blockfooter);
+    footer->size = block->size;
+    set_prev_free(block);
     size_t index = get_bin_index(block->size);
     if (index >= 0 && index < MAX_BIN_CATEGORIES)
     {

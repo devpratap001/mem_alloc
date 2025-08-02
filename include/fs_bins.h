@@ -5,7 +5,7 @@
 #include "../include/mem_alloc_internals.h"
 
 // no of bin size categories
-#define MAX_BIN_CATEGORIES 7    // 8, 16, 32, 34, 128, 256, 512
+#define MAX_BIN_CATEGORIES 8    // 8, 16, 32, 34, 128, 256, 512, 1024
 
 // bins array
 extern Block *bins[MAX_BIN_CATEGORIES];

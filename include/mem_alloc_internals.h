@@ -3,14 +3,31 @@
 
 #include <stddef.h>
 
+// track heap start and heap end during each sbrk call
+extern void* heap_start, *heap_end;
+
 // header metadata for simple memory block
 typedef struct Block
 {
     size_t size;
-    int free;
+    int free;                   //free | prev_free; lowest bit for prev_free
     int is_mmap;
     struct Block *next, *prev;
 } Block;
+
+//bits in free that represent curr_free and prev_free
+#define CURR_FREE (1<<1)
+#define PREV_FREE (1<<0)
+
+// function to set prev free flag in Block->free
+void set_prev_free(Block*);     // set prev_free flag to 1
+void set_prev_full(Block*);     // set prev_free flag to 0
+
+// footer metadata for every memory block
+typedef struct Blockfooter
+{
+    size_t size;
+}Blockfooter;
 
 //memory alignment for allocated heap segment
 #define ALIGNMENT 8
@@ -41,7 +58,7 @@ void remove_from_freelist(Block*);
 void split_block(Block*, size_t);
 
 // coalesce adjecent free blocks
-void coalesce(Block*);
+Block* coalesce(Block*);
 
 // free a block in its metadata
 void free_block(Block*);

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "../include/fs_bins.h"
 
-int bin_size[MAX_BIN_CATEGORIES] = {8, 16, 32, 64, 128, 256, 512};
+int bin_size[MAX_BIN_CATEGORIES] = {8, 16, 32, 64, 128, 256, 512, 1024};
 Block* bins[MAX_BIN_CATEGORIES] = {0};
 
 int get_bin_index(size_t size)
@@ -30,7 +30,7 @@ Block* pop_bins(Block* block, size_t size)
 {
     if (get_bin_index(ALIGN(size)) == -1)
         return NULL;
-    block->free = 0;
+    block->free &= ~(CURR_FREE);
     if (block->next)
     {
         block->next->prev = block->prev;
@@ -53,7 +53,7 @@ Block* push_bins(Block* block, size_t size)
     size_t index = get_bin_index(ALIGN(size));
     if (index == -1)
         return NULL;
-    block->free = 1;
+    block->free |= CURR_FREE;
     Block* temp = bins[index];
     block->next = temp;
     if (temp)
