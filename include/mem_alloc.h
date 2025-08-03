@@ -13,4 +13,7 @@ void* mem_realloc(void*, size_t);
 //free dynamic memory allocated using mem_alloc
 void free_alloc(void*);
 
+// print heap layout
+void print_heap(void);
+
 #endif
