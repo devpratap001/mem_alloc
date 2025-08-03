@@ -73,7 +73,50 @@ void *mem_realloc(void *ptr, size_t size)
     }
     Block *block = (Block *)ptr - 1;
     if (block->size >= size)
-        return ptr;
+    {
+        if (block->size >= ALIGN(size + sizeof(Blockfooter)) + MIN_BLOCK_SIZE)
+        {
+            split_block(block, size);
+            block->next = NULL;
+            block->prev = NULL;
+            Block* next_block = (void*)(block + 1) + block->size;
+            int index = get_bin_index(next_block->size);
+            if (index >= 0)
+            {
+                push_bins(next_block, next_block->size);
+                return ptr;
+            }
+            free_block(next_block);
+            return ptr;
+        }
+    }
+    else
+    {
+        Block *phy_next = (void *)(block + 1) + block->size;
+        if ((void*)phy_next < heap_end)
+        {
+            if ((phy_next->free & CURR_FREE) && (block->size + phy_next->size + sizeof(Block) >= size))
+            {
+                int index = get_bin_index(ALIGN(phy_next->size));
+                if (index >= 0)
+                {
+                    set_prev_full(phy_next);
+                    phy_next = pop_bins(phy_next, phy_next->size);
+                    phy_next->free &= ~(CURR_FREE);
+                    block->size += sizeof(Block) + phy_next->size;
+                    Blockfooter *b_footer = (void *)(block + 1) + block->size - sizeof(Blockfooter);
+                    b_footer->size = block->size;
+                    return (void*)(block + 1);
+                }
+                remove_from_freelist(phy_next);
+                phy_next->free &= ~(CURR_FREE);
+                block->size += sizeof(Block) + phy_next->size;
+                Blockfooter *b_footer = (void *)(block + 1) + block->size - sizeof(Blockfooter);
+                b_footer->size = block->size;
+                return (void*)(block + 1);
+            }
+        }
+    }
     void *new_ptr = mem_alloc(size);
     if (!new_ptr)
         return NULL;

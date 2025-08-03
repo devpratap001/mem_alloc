@@ -79,10 +79,10 @@ void remove_from_freelist(Block *block)
 
 void split_block(Block *block, size_t size)
 {
-    if (block->size >= ALIGN(size) + sizeof(Block) + MIN_BLOCK_SIZE)
+    if (block->size >= ALIGN(size + sizeof(Blockfooter)) + MIN_BLOCK_SIZE)
     {
-        Block *new_block = (Block *)((char *)(block + 1) + ALIGN(size));
-        new_block->size = block->size - ALIGN(size) - sizeof(Block);
+        Block *new_block = (Block *)((char *)(block + 1) + ALIGN(size + sizeof(Blockfooter)));
+        new_block->size = block->size - ALIGN(size + sizeof(Blockfooter)) - sizeof(Block);
         new_block->free = 0;
         new_block->free |= CURR_FREE;
         new_block->is_mmap = 0;
@@ -91,7 +91,10 @@ void split_block(Block *block, size_t size)
             block->next->prev = new_block;
         new_block->prev = block;
         block->next = new_block;
-        block->size = size;
+        block->size = ALIGN(sizeof(Blockfooter) + size);
+        Blockfooter* n_footer = (void*)(new_block + 1) + new_block->size - sizeof(Blockfooter);
+        n_footer->size = new_block->size;
+        set_prev_free(new_block);
     }
 };
 
@@ -106,6 +109,7 @@ Block *coalesce_block(Block *block)
             block->size += sizeof(Block) + next->size;
             Blockfooter *new_footer = (void *)(block + 1) + block->size - sizeof(Blockfooter);
             new_footer->size = block->size;
+            set_prev_free(block);
         };
     }
 
@@ -117,15 +121,11 @@ Block *coalesce_block(Block *block)
         return block;
     if (prev->free & CURR_FREE)
     {
-        Block* block_next = (void*)(block + 1) + block->size;
         remove_from_freelist(block);
-        if ((void*)block_next < heap_end)
-        {
-            block_next->free |= PREV_FREE;
-        }
         prev->size += sizeof(Block) + block->size;
         Blockfooter *prev_footer = (void *)(prev + 1) + prev->size - sizeof(Blockfooter);
         prev_footer->size = prev->size;
+        set_prev_free(prev);
     };
     return prev;
 };

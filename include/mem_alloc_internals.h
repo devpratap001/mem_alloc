@@ -38,7 +38,7 @@ typedef struct Blockfooter
 
 
 //minimum block size i.e. for memory alignment in heap
-#define MIN_BLOCK_SIZE 8
+#define MIN_BLOCK_SIZE sizeof(Block) + sizeof(Blockfooter) + ALIGNMENT
 
 //==================== Block freelist implementation =============
 
