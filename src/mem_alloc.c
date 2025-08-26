@@ -42,7 +42,7 @@ void *mem_alloc(size_t size)
     }
     else
     {
-        split_block(block, ALIGN(size));
+        split_block(block, ALIGN(size - sizeof(Blockfooter)));
         remove_from_freelist(block);
         block->free &= ~(CURR_FREE);
     }
